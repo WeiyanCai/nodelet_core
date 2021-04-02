@@ -85,6 +85,11 @@ public:
     bond_spinner_.start();
   }
 
+  ~LoaderROS() {
+  	boost::mutex::scoped_lock lock(lock_);
+	bond_map_.clear();
+  }
+
 private:
   bool serviceLoad(nodelet::NodeletLoad::Request &req,
                    nodelet::NodeletLoad::Response &res)
@@ -201,14 +206,16 @@ struct ManagedNodelet : boost::noncopyable
 
 struct Loader::Impl
 {
-  boost::shared_ptr<LoaderROS> services_;
-
   boost::function<boost::shared_ptr<Nodelet> (const std::string& lookup_name)> create_instance_;
   boost::function<void ()> refresh_classes_;
   boost::shared_ptr<detail::CallbackQueueManager> callback_manager_; // Must outlive nodelets_
 
   typedef boost::ptr_map<std::string, ManagedNodelet> M_stringToNodelet;
   M_stringToNodelet nodelets_; ///<! A map of name to currently constructed nodelets
+
+  // LoaderROS must outlive other members, because of following scenario: ~LoaderROS -> ~Bond ->
+  // Loader::unload -> impl_->nodelets_.find(name).
+  boost::shared_ptr<LoaderROS> services_;
 
   Impl()
   {
